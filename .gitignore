@@ -1,0 +1,33 @@
+# Created by https://www.toptal.com/developers/gitignore/api/actionscript
+# Edit at https://www.toptal.com/developers/gitignore?templates=actionscript
+
+### Actionscript ###
+# Build and Release Folders
+bin-debug/
+bin-release/
+[Oo]bj/
+[Bb]in/
+.vs/
+.vscode/
+Library/
+Logs/
+obj/
+ProjectSettings/
+Temp/
+
+# Other files and folders
+.settings/
+
+# Executables
+*.swf
+*.air
+*.ipa
+*.apk
+*.csproj
+*.sln
+
+# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
+# should NOT be excluded as they contain compiler settings and other important
+# information for Eclipse / Flash Builder.
+
+# End of https://www.toptal.com/developers/gitignore/api/actionscript
