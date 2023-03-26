@@ -22,11 +22,13 @@ public class SampleScene : MonoBehaviour
         syncHandler.StartCheckTime();
 
         settingText.text = "Setting : " + "fixed : " + setting.fixedDeltaTime + "s, Turn time : " + setting.turnTime + "ms"; 
+    
+        Application.targetFrameRate = 60;
     }
 
     // Update is called once per frame
     void Update()
-    {
+    {        
         syncHandler.UpdateHandler();
     }
 
