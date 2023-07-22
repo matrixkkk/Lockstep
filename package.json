@@ -1,6 +1,6 @@
 {
     "name": "com.laststep.lockstep",
-    "Version": "1.0.0",
+    "version": "1.0.0",
     "displayName": "lockstep",
     "description": "고정 프레임에 동작하는 방식",
     "unity":"2021.3"
