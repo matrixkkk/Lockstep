@@ -5,31 +5,31 @@
 /// </summary>
 public class LockstepSyncHandler
 {
-    public delegate void UpdateCallback(double delta, int diff, int updateCount);
+    public delegate void UpdateCallback(double delta, int turnDelta, int updateCount);
     public delegate void UpdateTurnCallback(uint turnCount);
 
-    private double mCurrentFixedDelta;          //고정 프레임 delta 시간(s)
-    private int mFixedDeltaMillisecond;         //fixed delta ms 단위
-    private int mUpdateCallCount = 0;           //전투 시작 후 게임 내 update call 누적 카운트
-    private UpdateCallback mUpdateCallback;
-    public UpdateTurnCallback OnUpdateTurn { get; private set; }
+    private double _currentFixedDelta;          //고정 프레임 delta 시간(s)
+    private int _fixedDeltaMillisecond;         //fixed delta ms 단위
+    private int _updateCallCount = 0;           //전투 시작 후 게임 내 update call 누적 카운트
+    private UpdateCallback _updateCallback;
+    private UpdateTurnCallback OnUpdateTurn { get; set; }
 
-    private ulong mElapsedTime = 0;                      //경과 시간(ms)
-    private ulong mCurrentTime = 0;
+    private ulong _elapsedTime = 0;                      //경과 시간(ms)
+    private ulong _currentTime = 0;                      //현재 시간(ms)
 
     #region [ lock step ]
-    private bool mWaitRelease = false;                   //Lock이 release될 때까지 대기 할지 여부
-    private ulong mTurnTime = 0;                         //턴 시간(ms)
-    private bool mIsLockStep = false;                     //lock 상태인지 여부
-    private uint mCurrentTurnCount = 0;
-    private uint mNextTurn = 0;
-    private bool mUseRealTimeSince = false;               //실제 흐른 시간 사용
-    private ulong mStartTime = 0;
+    private bool _useLockstep = false;                   //Lock이 release될 때까지 대기 할지 여부
+    private int _turnTime = 0;                           //턴 시간(ms)
+    private bool _isLockStep = false;                    //lock 상태인지 여부
+    private uint _currentTurnCount = 0;                  //현재 턴 개수
+    private uint _nextTurn = 0;
+    private bool _useRealTimeSinceSince = false;          //실제 흐른 시간 사용
+    private ulong _startTime = 0;                         //시작 시간
     #endregion
 
-    public bool UseMonotonicTime { get { return mUseRealTimeSince; } set { mUseRealTimeSince = value; } }
-    public int UpdateCallCount { get { return mUpdateCallCount; } }
-    public ulong CurrentElapsedTime { get { return GetElapsedMillisecond() - mStartTime; } }
+    public bool UseRealTimeSince { get => _useRealTimeSinceSince; private set => _useRealTimeSinceSince = value; }
+    public int UpdateCallCount => _updateCallCount;
+    public ulong CurrentElapsedTime => GetRealtimeSinceStartup() - _startTime;
 
     /// <summary>
     /// 시간으로 턴 구함
@@ -38,59 +38,69 @@ public class LockstepSyncHandler
     /// <returns></returns>
     public uint GetTurn(double time)
     {
-        return (uint)(time * 1000 / mTurnTime);
+        return (uint)(time * 1000 / _turnTime);
     }
 
+    /// <summary>
+    /// 현재 턴 가져오기
+    /// </summary>
+    /// <returns></returns>
     public uint GetCurrentTurn()
     {
-        return (uint)(mElapsedTime / (ulong)mTurnTime);
+        return (uint)(_elapsedTime / (ulong)_turnTime);
     }
 
     /// <summary>
     /// 경과 시간 ms 단위로 리턴
     /// </summary>
     /// <returns></returns>
-    public ulong GetElapsedMillisecond()
+    private ulong GetRealtimeSinceStartup()
     {
         return (ulong)(Time.realtimeSinceStartup * 1000);
     }
 
-    public void Init(double fixedFrameTime, ulong turnTime, bool waitRelease, UpdateCallback callback)
+    public void Init(double fixedFrameTime, int turnTime, bool useLockStep, UpdateCallback callback)
     {
-        mTurnTime = turnTime;
-        mWaitRelease = waitRelease;
-        mUpdateCallback = callback;
-        mCurrentFixedDelta = fixedFrameTime;
-        mFixedDeltaMillisecond = (int)(mCurrentFixedDelta * 1000);      
-        mNextTurn = 1;
-        mUpdateCallCount = 0;
-        mCurrentTime = 0;
-        mElapsedTime = 0;
-        mCurrentTurnCount = 0;
+        _turnTime = turnTime;
+        _useLockstep = useLockStep;
+        _updateCallback = callback;
+        _currentFixedDelta = fixedFrameTime;
+        _fixedDeltaMillisecond = (int)(_currentFixedDelta * 1000);      
+        _nextTurn = 1;
+        _updateCallCount = 0;
+        _currentTime = 0;
+        _elapsedTime = 0;
+        _currentTurnCount = 0;
     }
-
+    
+    /// <summary>
+    /// 시간 체크 시작
+    /// </summary>
     public void StartCheckTime()
     {
-        mStartTime = GetElapsedMillisecond();
-        mCurrentTime = 0;
-        mElapsedTime = 0;
+        _startTime = GetRealtimeSinceStartup();
+        _currentTime = 0;
+        _elapsedTime = 0;
     }
-
+    
+    /// <summary>
+    /// 롤백 시 경과 시간으로 재계산
+    /// </summary>
+    /// <param name="elapsedTime"></param>
     public void Rollback(ulong elapsedTime)
     {
-        mCurrentTime = 0;
-        mElapsedTime = elapsedTime;
-        mStartTime = GetElapsedMillisecond() - mElapsedTime;
+        _currentTime = 0;
+        _elapsedTime = elapsedTime;
+        _startTime = GetRealtimeSinceStartup() - _elapsedTime;
     }
-
-
-    public void RegistUpdateTurnCallback(UpdateTurnCallback callback)
-    {
-        OnUpdateTurn = callback;
-    }  
 
     public void UpdateHandler()
     {
+        //lockStep 사용중이고 LockStep 상태이면 처리 안함
+        if(_useLockstep && _isLockStep)
+        {
+            return;
+        }
         SkipFrame();
     }
 
@@ -105,7 +115,7 @@ public class LockstepSyncHandler
         Debug.Log("Elapsed delta : " + delta);
         if (delta > 0 )
         {
-            mStartTime -= delta;
+            _startTime -= delta;
             Debug.Log("Server Elapsed : " + aElapsedTime + " Current Elapsed : " + CurrentElapsedTime);
         }       
     }
@@ -116,52 +126,46 @@ public class LockstepSyncHandler
     /// <param name="skipTime"></param>
     public void SkipElapsedTime(ulong skipTime)
     {
-        mElapsedTime = mStartTime + skipTime;
+        _elapsedTime = _startTime + skipTime;
     }
 
     private void SkipFrame()
     {
-        //lockStep 사용중이고 LockStep 상태이면 처리 안함
-        if(mWaitRelease && mIsLockStep)
+        if (_useRealTimeSinceSince)
         {
-            return;
-        }
-
-        if (mUseRealTimeSince)
-        {
-            mElapsedTime = CurrentElapsedTime;      //흐른시간
+            _elapsedTime = CurrentElapsedTime;      //흐른시간
         }
         else
         {
-            mElapsedTime += (ulong)(Time.deltaTime * 1000);
+            _elapsedTime += (ulong)(Time.deltaTime * 1000);
         }
 
-        uint elapsedTurn = (uint)(mElapsedTime / (ulong)mTurnTime);
+        uint elapsedTurn = (uint)(_elapsedTime / (ulong)_turnTime);
 
-        while (mCurrentTime < mElapsedTime)
+        while (_currentTime < _elapsedTime)
         {
-            mCurrentTime += (ulong)mFixedDeltaMillisecond;
-            mCurrentTurnCount = (uint)(mCurrentTime / (ulong)mTurnTime);
+            _currentTime += (ulong)_fixedDeltaMillisecond;
+            _currentTurnCount = (uint)(_currentTime / (ulong)_turnTime);
 
             //Turn 차이에 따른 Skip 여부
-            int diff = (int)(elapsedTurn - mCurrentTurnCount);
-            mUpdateCallback(mCurrentFixedDelta, diff, mUpdateCallCount);
-            mUpdateCallCount++;
+            int turnDelta = (int)(elapsedTurn - _currentTurnCount);
+            _updateCallback(_currentFixedDelta, turnDelta, _updateCallCount);
+            _updateCallCount++;
 
-            if (mCurrentTurnCount >= mNextTurn)
+            if (_currentTurnCount >= _nextTurn)
             {
                 if (OnUpdateTurn != null)
                 {
-                    OnUpdateTurn(mCurrentTurnCount);
+                    OnUpdateTurn(_currentTurnCount);
                 }
-                mIsLockStep = true;
-                mNextTurn++;
+                _isLockStep = true;
+                _nextTurn++;
             }
         }
     }
 
     public void UnlockStep()
     {
-        mIsLockStep = false;
+        _isLockStep = false;
     }
 }
